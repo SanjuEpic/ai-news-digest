@@ -1,4 +1,4 @@
-# 🤖 Daily AI Digest — AWS Lambda
+# 🤖 Weekly AI Digest — AWS Lambda
 
 A serverless agent that searches the web for the latest AI news, **semantically deduplicates**
 against recent history, and emails a formatted digest. Runs on **AWS Lambda**, triggered by

@@ -1,5 +1,5 @@
 """
-Daily AI News Digest Lambda (v2)
+Weekly AI News Digest Lambda (v2) — runs twice weekly (Mon & Fri)
 - Secrets pulled from SSM Parameter Store (SecureString) at cold start
 - Claude Haiku + web_search gathers candidate news items (section-tagged)
 - Semantic dedup: OpenAI embeddings + cosine similarity (drop items >= threshold)
@@ -194,7 +194,7 @@ def _sanitize_citations(html: str) -> str:
 
 # ---------------- Phase 1: Claude gathers candidate items ----------------
 def gather_candidates() -> list:
-    system_prompt = f"""You are a daily AI news curator. Today is {TODAY}. Search the web for the latest AI developments from the past 24-48 hours.
+    system_prompt = f"""You are an AI news curator. Today is {TODAY}. Search the web for the latest AI developments from the past few days (this digest runs twice a week).
 
 Search broadly across: frontier closed-source models (OpenAI, Anthropic, Google Gemini, xAI/Grok, Microsoft, Meta); open-source models (DeepSeek, Qwen, Llama, Mistral, Gemma, Kimi, GLM, MiniMax, Phi, Falcon, Yi); multimodal & specialized models (VLMs, speech/audio TTS/STT, multilingual, video, code, math); research & innovations (arxiv papers, training techniques, new benchmarks, efficiency); comparative benchmark standings; and quick hits (funding, partnerships, policy).
 
@@ -313,7 +313,7 @@ def assemble(survivors: list) -> tuple:
     if not tldr:
         tldr = survivors[:5]
 
-    html = [f"<h2>🤖 Daily AI Digest — {TODAY}</h2>"]
+    html = [f"<h2>🤖 Weekly AI Digest — {TODAY}</h2>"]
     html.append("<h3>⚡ TL;DR</h3><ul>")
     for c in tldr:
         html.append(c["html"])
@@ -333,7 +333,7 @@ def assemble(survivors: list) -> tuple:
     html_body = "\n".join(html)
 
     # Plain-text version (reuse module-level _re; no per-call import)
-    plain_lines = [f"Daily AI Digest - {TODAY}", "", "TL;DR:"]
+    plain_lines = [f"Weekly AI Digest - {TODAY}", "", "TL;DR:"]
     for c in tldr:
         plain_lines.append("- " + _re.sub(r"<[^>]+>", "", c["html"]).strip())
     for key, header in SECTIONS:
@@ -353,7 +353,7 @@ def assemble(survivors: list) -> tuple:
 # ---------------- Email senders ----------------
 def send_email(html_body: str, plain_body: str) -> None:
     msg = MIMEMultipart("alternative")
-    msg["Subject"] = f"🤖 Daily AI Digest — {TODAY}"
+    msg["Subject"] = f"🤖 Weekly AI Digest — {TODAY}"
     msg["From"] = f"Claude AI Digest <{SENDER}>"
     msg["To"] = RECIPIENT
     msg.attach(MIMEText(plain_body, "plain", "utf-8"))
