@@ -5,10 +5,12 @@ Description: AI News Digest Lambda - emails a curated digest at 9 AM IST every M
 Parameters:
   RecipientEmail:
     Type: String
-    Default: attili.sanjeet10@gmail.com
+    Default: you@example.com
+    Description: Where the digest is emailed. Pass your real address via --parameter-overrides at deploy.
   SenderEmail:
     Type: String
-    Default: attili.sanjeet10@gmail.com
+    Default: you@example.com
+    Description: Gmail account used to send (needs an app password in SSM). Override at deploy.
   SsmPrefix:
     Type: String
     Default: /ai-digest

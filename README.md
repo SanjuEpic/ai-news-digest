@@ -8,7 +8,7 @@ Store** for secrets.
 - **Model:** Claude Haiku 4.5 (the `web_search` tool does the content heavy-lifting; Haiku formats)
 - **Dedup:** OpenAI `text-embedding-3-small` @ **512 MRL dims** + cosine similarity, threshold **0.80**
 - **Schedule:** Monday & Friday at 9:00 AM IST (3:30 AM UTC)
-- **Delivery:** Gmail SMTP → `attili.sanjeet10@gmail.com`
+- **Delivery:** Gmail SMTP → recipient set via the `RecipientEmail` deploy parameter
 - **Secrets:** AWS SSM Parameter Store (`/ai-digest/*`, SecureString)
 - **Region:** `ap-south-1` (Mumbai) · **Stack:** `ai-daily-digest`
 
@@ -113,6 +113,7 @@ $env:SAM_CLI_TELEMETRY = "0"
 sam build --build-dir "$env:LOCALAPPDATA\ai-digest-build"
 
 # 2. Deploy   (NOTE: no secrets on the command line — they come from SSM)
+#    First-time deploy: pass your real recipient/sender (defaults are placeholders).
 sam deploy `
   --template-file "$env:LOCALAPPDATA\ai-digest-build\template.yaml" `
   --stack-name ai-daily-digest `
@@ -120,8 +121,12 @@ sam deploy `
   --capabilities CAPABILITY_IAM `
   --resolve-s3 `
   --no-confirm-changeset `
-  --no-fail-on-empty-changeset
+  --no-fail-on-empty-changeset `
+  --parameter-overrides "RecipientEmail=you@example.com" "SenderEmail=you@example.com"
 ```
+
+> The email **defaults are placeholders** (`you@example.com`). On the first deploy pass your
+> real address via `--parameter-overrides`; CloudFormation then retains it on later deploys.
 
 > ⚠️ **Changing a template Parameter** (e.g. `SimilarityThreshold`, `EmbedDims`): CloudFormation
 > **keeps the previous value** unless you pass it explicitly. To actually change it, add e.g.
