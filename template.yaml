@@ -1,0 +1,103 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: AI News Digest Lambda - emails a curated digest at 9 AM IST every Monday & Friday
+
+Parameters:
+  RecipientEmail:
+    Type: String
+    Default: attili.sanjeet10@gmail.com
+  SenderEmail:
+    Type: String
+    Default: attili.sanjeet10@gmail.com
+  SsmPrefix:
+    Type: String
+    Default: /ai-digest
+    Description: SSM Parameter Store path prefix holding the SecureString secrets
+  SimilarityThreshold:
+    Type: String
+    Default: '0.80'
+    Description: Cosine similarity at/above which a news item is treated as a duplicate (calibrated empirically; hard negatives top out ~0.717)
+  EmbedDims:
+    Type: String
+    Default: '512'
+    Description: MRL-shortened embedding dimensions (512 is a native OpenAI MRL breakpoint)
+
+Resources:
+
+  # DynamoDB table for deduplication log (14-day TTL)
+  DigestSentItemsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: ai-digest-sent-items
+      AttributeDefinitions:
+        - AttributeName: item_key
+          AttributeType: S
+      KeySchema:
+        - AttributeName: item_key
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+      TimeToLiveSpecification:
+        AttributeName: expires_at
+        Enabled: true
+
+  # Lambda function
+  DigestFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: ai-digest-daily
+      CodeUri: src/
+      Handler: app.handler
+      Runtime: python3.13
+      MemorySize: 512
+      Timeout: 600   # 10 minutes max - Claude with web search can take a while
+      Architectures:
+        - x86_64
+      Environment:
+        Variables:
+          RECIPIENT_EMAIL: !Ref RecipientEmail
+          SENDER_EMAIL: !Ref SenderEmail
+          DDB_TABLE: !Ref DigestSentItemsTable
+          SSM_PREFIX: !Ref SsmPrefix
+          SIMILARITY_THRESHOLD: !Ref SimilarityThreshold
+          EMBED_DIMS: !Ref EmbedDims
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref DigestSentItemsTable
+        # Read-only access to just our SecureString secrets
+        - Statement:
+            - Effect: Allow
+              Action:
+                - ssm:GetParameter
+                - ssm:GetParameters
+                - ssm:GetParametersByPath
+              Resource:
+                - !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${SsmPrefix}/*'
+            # Decrypt for the SSM SecureString params. The default `aws/ssm`
+            # key authorizes the account via its key policy; we scope by region
+            # and rely on SSM as the calling service. (IAM matches KMS by key
+            # ARN, not alias, so this is intentionally a region-wide grant for
+            # the AWS-managed key only.)
+            - Effect: Allow
+              Action:
+                - kms:Decrypt
+              Resource:
+                - !Sub 'arn:aws:kms:${AWS::Region}:${AWS::AccountId}:key/*'
+              Condition:
+                StringEquals:
+                  kms:ViaService: !Sub 'ssm.${AWS::Region}.amazonaws.com'
+      Events:
+        DailyTrigger:
+          Type: Schedule
+          Properties:
+            # 9:00 AM IST = 3:30 AM UTC, Monday & Friday only
+            Schedule: 'cron(30 3 ? * MON,FRI *)'
+            Description: Trigger AI Digest at 9 AM IST on Mon & Fri
+            Enabled: true
+
+Outputs:
+  FunctionName:
+    Description: Lambda function name
+    Value: !Ref DigestFunction
+  TableName:
+    Description: DynamoDB table for dedup
+    Value: !Ref DigestSentItemsTable

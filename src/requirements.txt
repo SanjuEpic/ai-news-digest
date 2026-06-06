@@ -1,0 +1,4 @@
+# Pinned for reproducible Lambda builds. boto3 is provided by the Lambda
+# runtime, but we pin a floor so local `sam build` matches prod behavior.
+anthropic>=0.40.0,<1.0.0
+boto3>=1.34.0,<2.0.0

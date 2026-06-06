@@ -1,0 +1,20 @@
+# Secrets — NEVER commit (prod secrets live in AWS SSM Parameter Store)
+.env
+*.env
+**/secrets*
+
+# SAM / build artifacts
+.aws-sam/
+**/.aws-sam/
+samconfig.toml
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
