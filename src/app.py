@@ -24,7 +24,9 @@ from anthropic import Anthropic
 
 # ---------------- Config ----------------
 REGION = os.environ.get("AWS_REGION", "ap-south-1")
-RECIPIENT = os.environ["RECIPIENT_EMAIL"]
+# RECIPIENT_EMAIL may be a single address or a comma-separated list ("a@x.com, b@y.com").
+RECIPIENTS = [e.strip() for e in os.environ["RECIPIENT_EMAIL"].split(",") if e.strip()]
+RECIPIENT_HEADER = ", ".join(RECIPIENTS)  # for the email "To:" header
 SENDER = os.environ["SENDER_EMAIL"]
 DDB_TABLE = os.environ["DDB_TABLE"]
 SSM_PREFIX = os.environ.get("SSM_PREFIX", "/ai-digest")
@@ -196,7 +198,16 @@ def _sanitize_citations(html: str) -> str:
 def gather_candidates() -> list:
     system_prompt = f"""You are an AI news curator. Today is {TODAY}. Search the web for the latest AI developments from the past few days (this digest runs twice a week).
 
-Search broadly across: frontier closed-source models (OpenAI, Anthropic, Google Gemini, xAI/Grok, Microsoft, Meta); open-source models (DeepSeek, Qwen, Llama, Mistral, Gemma, Kimi, GLM, MiniMax, Phi, Falcon, Yi); multimodal & specialized models (VLMs, speech/audio TTS/STT, multilingual, video, code, math); research & innovations (arxiv papers, training techniques, new benchmarks, efficiency); comparative benchmark standings; and quick hits (funding, partnerships, policy).
+COVERAGE — go WIDE, not just the household names. Deliberately seek out news beyond OpenAI / Anthropic / Google:
+- Frontier closed-source: OpenAI, Anthropic, Google Gemini, xAI/Grok, Microsoft (MAI), Meta, AND also Perplexity, Amazon (Nova), Cohere, Reka, AI21, Inflection, Mistral (commercial tier).
+- Open-source / open-weight: DeepSeek, Qwen/Alibaba, Llama, Mistral, Gemma, Kimi/Moonshot, GLM/Zhipu, MiniMax, Phi, Falcon, Yi, InternLM, Nemotron/NVIDIA, OLMo/AI2, SmolLM/HuggingFace.
+- Multimodal & specialized: VLMs, image/video gen (Stability, Black Forest Labs, Runway, Pika, Luma, Kling), speech/audio TTS/STT & voice (ElevenLabs, Suno, Udio, Cartesia), multilingual, code, math/reasoning, embeddings, robotics/world models.
+- Research & innovation: notable arxiv papers, training techniques, new benchmarks, efficiency/quantization, agentic frameworks.
+- Quick hits: funding, partnerships, policy, infra/chips.
+
+PRIORITIZE RECORD-BREAKERS: any model that sets a NEW state-of-the-art or tops a leaderboard (SWE-bench, GPQA, AIME/MATH, MMLU-Pro, LMArena/Artificial Analysis, HumanEval, MMMU, VideoMME, etc.) — ESPECIALLY a smaller, cheaper, open-source, or lesser-known model beating a bigger/closed one. Lead with these and mark them ⭐.
+
+The 📊 Comparative Snapshot section should NOT be empty: always include at least 2-3 lines on who currently leads which benchmark and any notable upsets.
 
 CITATIONS (STRICT): Every item MUST end with a REAL clickable link in this EXACT form:
   <a href="https://REAL-URL-FROM-YOUR-SEARCH">[ShortLabel]</a>
@@ -220,8 +231,8 @@ Rules:
 - TLDR section = 3-5 of the single biggest NEW headlines (these also appear in their topical section).
 - Put each substantive item under its best-fit topical section.
 - Keep each @@HTML on ONE line (no line breaks inside it).
-- Aim for breadth: 12-20 items total across sections.
-- Only include genuinely recent (past 24-48h) developments."""
+- Aim for breadth: 14-22 items total across sections, spanning MANY different labs (not 3 items all about OpenAI).
+- Only include genuinely recent developments (past few days since the last twice-weekly run)."""
 
     print("[claude] gathering candidates (Haiku + web_search)")
     msg = anthropic.messages.create(
@@ -229,8 +240,22 @@ Rules:
         max_tokens=16000,
         system=system_prompt,
         messages=[{"role": "user", "content": f"Gather today's ({TODAY}) AI news candidate items. Search thoroughly and return the ===ITEMS=== block."}],
-        tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 5}],
+        tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 8}],
     )
+
+    # Log the actual web_search queries Claude issued this run (visible in CloudWatch).
+    # These are chosen dynamically by the model each run; max_uses=8 is just the ceiling.
+    queries = [
+        b.input.get("query")
+        for b in msg.content
+        if getattr(b, "type", "") == "server_tool_use"
+        and getattr(b, "name", "") == "web_search"
+        and isinstance(getattr(b, "input", None), dict)
+    ]
+    print(f"[search] {len(queries)} web searches issued (cap 8):")
+    for i, q in enumerate(queries, 1):
+        print(f"         {i}. {q}")
+
     text = "".join(b.text for b in msg.content if getattr(b, "type", "") == "text").strip()
     print(f"[claude] response length: {len(text)} chars, stop_reason: {msg.stop_reason}")
 
@@ -355,15 +380,15 @@ def send_email(html_body: str, plain_body: str) -> None:
     msg = MIMEMultipart("alternative")
     msg["Subject"] = f"🤖 Weekly AI Digest — {TODAY}"
     msg["From"] = f"Claude AI Digest <{SENDER}>"
-    msg["To"] = RECIPIENT
+    msg["To"] = RECIPIENT_HEADER
     msg.attach(MIMEText(plain_body, "plain", "utf-8"))
     msg.attach(MIMEText(html_body, "html", "utf-8"))
     with smtplib.SMTP("smtp.gmail.com", 587, timeout=30) as server:
         server.ehlo()
         server.starttls()
         server.login(SENDER, GMAIL_APP_PASSWORD)
-        server.sendmail(SENDER, RECIPIENT, msg.as_bytes())
-    print(f"[ok] email sent to {RECIPIENT}")
+        server.sendmail(SENDER, RECIPIENTS, msg.as_bytes())  # list = deliver to all
+    print(f"[ok] email sent to {RECIPIENT_HEADER}")
 
 
 def send_alert(subject: str, body_text: str) -> None:
@@ -371,13 +396,13 @@ def send_alert(subject: str, body_text: str) -> None:
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject
         msg["From"] = f"Claude AI Digest <{SENDER}>"
-        msg["To"] = RECIPIENT
+        msg["To"] = RECIPIENT_HEADER
         msg.attach(MIMEText(body_text, "plain", "utf-8"))
         with smtplib.SMTP("smtp.gmail.com", 587, timeout=30) as server:
             server.ehlo()
             server.starttls()
             server.login(SENDER, GMAIL_APP_PASSWORD)
-            server.sendmail(SENDER, RECIPIENT, msg.as_bytes())
+            server.sendmail(SENDER, RECIPIENTS, msg.as_bytes())
         print(f"[alert] sent: {subject}")
     except Exception as e:
         print(f"[alert-failed] {e}")

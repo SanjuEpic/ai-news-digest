@@ -14,6 +14,72 @@ Store** for secrets.
 
 ---
 
+## 📥 Input & 📤 Output
+
+**There is no manual input per run** — the agent triggers itself on schedule and discovers news via
+live web search. The only thing you "configure" is **who receives the digest** and a few tuning knobs,
+all via CloudFormation/SAM **deploy parameters** (never hard-coded, never secrets):
+
+| Parameter | What it controls | Default | Example override |
+|-----------|------------------|---------|------------------|
+| `RecipientEmail` | Who gets the email. **One or many** (comma-separated) | `you@example.com` | `"me@x.com,team@y.com"` |
+| `SenderEmail` | Gmail account used to send (needs an app password in SSM) | `you@example.com` | `me@x.com` |
+| `SimilarityThreshold` | Cosine score at/above which an item is a duplicate | `0.80` | `0.85` |
+| `EmbedDims` | MRL embedding size | `512` | `1024` |
+
+> **Multiple recipients:** pass a comma-separated list to `RecipientEmail`. They're all added to the
+> `To:` header and each receives the same digest:
+> ```powershell
+> sam deploy ... --parameter-overrides "RecipientEmail=me@x.com,friend@y.com" "SenderEmail=me@x.com"
+> ```
+
+**Secrets** (API keys, Gmail app password) are the other input — but they live in **SSM Parameter
+Store**, not in parameters or code. See [Secrets](#secrets-live-in-ssm-parameter-store-not-env-vars-not-code).
+
+### 📤 What the output looks like
+
+A formatted HTML email (plain-text fallback included) titled **“🤖 Weekly AI Digest — &lt;date&gt;”**,
+organized into a TL;DR plus six sections, every item ending in a clickable source link:
+
+```
+🤖 Weekly AI Digest — June 8, 2026
+
+⚡ TL;DR
+• Anthropic issued a rare public warning that its own models may soon be too
+  powerful to control — existential safety concerns near superintelligence. [BuildFastWithAI]
+• Apple's new Extensions system lets users pick which AI handles Apple
+  Intelligence: ChatGPT, Gemini, or Claude — each with a distinct voice. [BuildFastWithAI]
+• Grok V9-Medium finished training at 1.5T params (3× the v8-small prod model). [Basenor]
+
+🏢 1. Frontier / Closed-Source Models
+• OpenAI frontier models + Codex now available on AWS. [BuildFastWithAI]
+• Anthropic closes a round at a $965B valuation; confidentially files for IPO. [CNBC]
+
+🔓 2. Open-Source Models
+• Kimi K2.6 (Moonshot) is #1 open-weight on Artificial Analysis (score 54, #4 overall). [NeuralWired]
+• GLM-5.1 (Zhipu) stays productive across thousands of tool calls. [BentoML]
+• DeepSeek-V4: dual MoE, 32T-token pretrain, 1M-token context. [BentoML]
+
+🌐 3. Multimodal & Specialized Models
+• SAM 3 (Meta) tops Roboflow's Vision rankings (score 1391). [Roboflow]
+
+🔬 4. Research & Innovations
+• LLM-related arXiv papers: 91 (2021) → 33,569 (2025) ≈ 11.9% of all papers. [ArxivLens]
+
+📊 5. Comparative Snapshot
+• <leaderboard standings & upsets>
+
+📌 6. Quick Hits
+• Google ships the Colab CLI (run local code on remote GPU/TPU runtimes). [LLM Stats]
+
+— Curated for you by Claude | AWS Lambda Scheduled Agent
+```
+
+> Items are de-duplicated against the **last 14 days** of sent headlines (semantic similarity), so you
+> don't see the same launch twice across Monday/Friday editions. Surprising upsets are marked ⭐.
+
+---
+
 ## 📐 Architecture
 
 ```
@@ -61,6 +127,12 @@ jobs/ai-digest/
 ---
 
 ## ✅ Prerequisites (one-time)
+
+> 🪟 **Platform note:** All install commands, paths, and shell snippets in this README are written
+> for **Windows** (PowerShell + `winget`, paths like `$env:LOCALAPPDATA`). The project itself is
+> OS-agnostic (it's just Python on Lambda), but if you're on **macOS/Linux** you'll need to adapt:
+> use `brew`/`pip`/your package manager instead of `winget`, forward slashes for paths, and
+> `export VAR=...` instead of `$env:VAR=...`. The `aws`/`sam` commands themselves are identical.
 
 | Tool | Install | Verify |
 |------|---------|--------|
@@ -214,6 +286,34 @@ aws dynamodb scan --table-name ai-digest-sent-items --region ap-south-1 --select
 **TTL = rolling 14-day memory.** Each row self-deletes ~14 days after creation (AWS lag ≤48h). The
 table plateaus at ~120 items (~264 KB) — well inside the DynamoDB free tier, so storage cost ≈ $0.
 
+### ❓ DynamoDB FAQ
+
+**Q: Why `BillingMode: PAY_PER_REQUEST` (on-demand) instead of provisioned?**
+On-demand bills per actual read/write with **no hourly capacity charge**, so an idle table (which
+ours is — it's touched ~20 writes + a scan twice a week) costs effectively **$0**. Provisioned mode
+would make you pre-buy and pay for read/write capacity units *around the clock* whether used or not —
+wrong shape for a bursty, twice-weekly job. On-demand = zero ops, zero idle cost.
+
+**Q: Is it free for us right now?**
+Practically yes. AWS DynamoDB has an **always-free tier** (25 GB storage + 25 WCU/RCU-equivalent of
+on-demand throughput per month). We store ~264 KB and do a few dozen ops per week — **orders of
+magnitude** under the free tier. So storage + I/O ≈ **$0/month**.
+
+**Q: DynamoDB isn't a vector DB — how do we do embedding similarity on it?**
+We **don't** do similarity *in* DynamoDB. DynamoDB is used purely as a **key-value store**: it holds
+each survivor's 512-dim vector as a raw **Binary** blob (`array('f').tobytes()`). At run time the
+Lambda **scans** the recent rows, unpacks the blobs back into Python lists, and computes **cosine
+similarity in application code** (`_cosine()` in `app.py`) against the new candidates. The math
+happens in the Lambda, not the database. At our scale (≤~120 stored vectors) a brute-force Python
+loop is microseconds — no vector index needed.
+
+**Q: So is DynamoDB a relational database?**
+No. DynamoDB is a **NoSQL key-value / document** store — no tables-with-joins, no SQL, no foreign
+keys. We use a single primary key (`item_key`, a hash of the headline) and just `put`/`scan`. If we
+ever needed *native* vector search (millions of vectors, ANN indexing), we'd reach for a real vector
+store (e.g. **OpenSearch k-NN, pgvector, Pinecone**) — but that's overkill here, and DynamoDB's free
+tier + TTL auto-expiry makes it the cheapest fit for a small rolling dedup memory.
+
 > ⚠️ **Never mix embedding dimensions.** If you change `EmbedDims`, **flush the table** first so old
 > vectors of a different size don't get cosine-compared against new ones (zip truncates → garbage).
 > Flush:
@@ -287,9 +387,11 @@ IST = UTC + 5:30, so 9:00 IST → 3:30 UTC.
 |------|-------|
 | Lambda / EventBridge / DynamoDB / SSM (Standard) | Free tier covers all of it (~$0) |
 | OpenAI embeddings | ~$0.00002/run (negligible) |
-| Anthropic API (Haiku + 5 searches) | ~$0.13–0.16/run → **~$1.20/month** at Mon/Fri |
+| Anthropic API (Haiku + up to 8 searches) | ~$0.16–0.20/run → **~$1.50/month** at Mon/Fri |
 
-**A $5 Anthropic balance lasts ~4 months.** If it runs out you get the credit-exhausted alert email.
+Web search is billed at **$10 / 1,000 searches** (≈ $0.01 each), so raising `max_uses` from 5 → 8
+adds ≈ $0.03/run for noticeably wider coverage. **A $5 Anthropic balance still lasts ~3 months.**
+If it runs out you get the credit-exhausted alert email.
 
 ---
 

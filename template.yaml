@@ -6,7 +6,9 @@ Parameters:
   RecipientEmail:
     Type: String
     Default: you@example.com
-    Description: Where the digest is emailed. Pass your real address via --parameter-overrides at deploy.
+    Description: >-
+      Who receives the digest. Single address, or several comma-separated
+      (e.g. "a@x.com,b@y.com"). Pass your real value via --parameter-overrides at deploy.
   SenderEmail:
     Type: String
     Default: you@example.com
