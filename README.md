@@ -39,7 +39,8 @@ Store**, not in parameters or code. See [Secrets](#secrets-live-in-ssm-parameter
 ### 📤 What the output looks like
 
 A formatted HTML email (plain-text fallback included) titled **“🤖 Weekly AI Digest — &lt;date&gt;”**,
-organized into a TL;DR plus six sections, every item ending in a clickable source link:
+organized into a TL;DR plus six sections (incl. dedicated **🎙️ Voice & Audio** and
+**🔎 AI Search, Tools & Products**), every item ending in a clickable source link:
 
 ```
 🤖 Weekly AI Digest — June 8, 2026
@@ -60,17 +61,18 @@ organized into a TL;DR plus six sections, every item ending in a clickable sourc
 • GLM-5.1 (Zhipu) stays productive across thousands of tool calls. [BentoML]
 • DeepSeek-V4: dual MoE, 32T-token pretrain, 1M-token context. [BentoML]
 
-🌐 3. Multimodal & Specialized Models
-• SAM 3 (Meta) tops Roboflow's Vision rankings (score 1391). [Roboflow]
+🎙️ 3. Voice & Audio
+• ElevenLabs ships real-time voice cloning across its TTS + Voice Agent APIs. [ElevenLabs]
 
-🔬 4. Research & Innovations
+🔎 4. AI Search, Tools & Products
+• Perplexity's new research agent tops a live web-QA benchmark. [Perplexity]
+• Google ships the Colab CLI (run local code on remote GPU/TPU runtimes). [LLM Stats]
+
+🔬 5. Research & Innovations
 • LLM-related arXiv papers: 91 (2021) → 33,569 (2025) ≈ 11.9% of all papers. [ArxivLens]
 
-📊 5. Comparative Snapshot
-• <leaderboard standings & upsets>
-
 📌 6. Quick Hits
-• Google ships the Colab CLI (run local code on remote GPU/TPU runtimes). [LLM Stats]
+• SAM 3 (Meta) tops Roboflow's Vision rankings (score 1391). [Roboflow]
 
 — Curated for you by Claude | AWS Lambda Scheduled Agent
 ```

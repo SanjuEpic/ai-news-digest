@@ -71,9 +71,9 @@ table = ddb.Table(DDB_TABLE)
 SECTIONS = [
     ("FRONTIER", "🏢 1. Frontier / Closed-Source Models"),
     ("OPENSOURCE", "🔓 2. Open-Source Models"),
-    ("MULTIMODAL", "🌐 3. Multimodal & Specialized Models"),
-    ("RESEARCH", "🔬 4. Research & Innovations"),
-    ("COMPARATIVE", "📊 5. Comparative Snapshot"),
+    ("VOICE", "🎙️ 3. Voice & Audio"),
+    ("TOOLS", "🔎 4. AI Search, Tools & Products"),
+    ("RESEARCH", "🔬 5. Research & Innovations"),
     ("QUICKHITS", "📌 6. Quick Hits"),
 ]
 VALID_SECTIONS = {k for k, _ in SECTIONS} | {"TLDR"}
@@ -205,9 +205,18 @@ COVERAGE — go WIDE, not just the household names. Deliberately seek out news b
 - Research & innovation: notable arxiv papers, training techniques, new benchmarks, efficiency/quantization, agentic frameworks.
 - Quick hits: funding, partnerships, policy, infra/chips.
 
-PRIORITIZE RECORD-BREAKERS: any model that sets a NEW state-of-the-art or tops a leaderboard (SWE-bench, GPQA, AIME/MATH, MMLU-Pro, LMArena/Artificial Analysis, HumanEval, MMMU, VideoMME, etc.) — ESPECIALLY a smaller, cheaper, open-source, or lesser-known model beating a bigger/closed one. Lead with these and mark them ⭐.
+SEARCH ALLOCATION (you have up to 8 web searches — spend them WIDE, do NOT use 3+ on the same big-3 lab). You MUST dedicate at least one distinct search to EACH of these, and run them:
+  1. General latest AI news (this week).
+  2. Frontier closed-source updates (OpenAI / Anthropic / Google / xAI / Microsoft).
+  3. Open-source / open-weight releases (DeepSeek, Qwen, Mistral, Llama, Kimi, GLM, MiniMax, etc.).
+  4. NON-big-3 / under-covered labs — EXPLICITLY include Perplexity, Mistral, Cohere, Reka, AI21, Amazon Nova, NVIDIA (search e.g. "Perplexity Mistral Cohere new model OR benchmark this week").
+  5. 🎙️ VOICE / AUDIO modality advancements — TTS, STT, voice cloning, real-time speech, music (ElevenLabs, Suno, Udio, Cartesia, OpenAI/Google audio). ALWAYS run this one.
+  6. 🔎 AI SEARCH & TOOLS / PRODUCT releases judged by benchmarks or performance — new agentic tools, AI search engines, IDE/coding agents, and any tool that topped a benchmark (Perplexity, Anthropic, Cursor, etc.). ALWAYS run this one.
+  7. Benchmark records / new state-of-the-art across coding, reasoning, math, multimodal.
+  8. Multimodal / image-video gen / robotics, or any remaining hot topic.
+Each of sections 4, 5, and 6 above should contribute at least one item to the digest when anything relevant exists.
 
-The 📊 Comparative Snapshot section should NOT be empty: always include at least 2-3 lines on who currently leads which benchmark and any notable upsets.
+PRIORITIZE RECORD-BREAKERS: any model that sets a NEW state-of-the-art or tops a leaderboard (SWE-bench, GPQA, AIME/MATH, MMLU-Pro, LMArena/Artificial Analysis, HumanEval, MMMU, VideoMME, etc.) — ESPECIALLY a smaller, cheaper, open-source, or lesser-known model beating a bigger/closed one. Lead with these and mark them ⭐. Fold benchmark-leadership notes directly into the relevant model's item.
 
 CITATIONS (STRICT): Every item MUST end with a REAL clickable link in this EXACT form:
   <a href="https://REAL-URL-FROM-YOUR-SEARCH">[ShortLabel]</a>
@@ -221,7 +230,8 @@ Mark surprising / counterintuitive findings with ⭐.
 OUTPUT FORMAT — return ONLY a block of items, each tagged with a section. Use these EXACT delimiters and nothing else before/after:
 
 ===ITEMS===
-@@SECTION: <one of: TLDR | FRONTIER | OPENSOURCE | MULTIMODAL | RESEARCH | COMPARATIVE | QUICKHITS>
+@@SECTION: <one of: TLDR | FRONTIER | OPENSOURCE | VOICE | TOOLS | RESEARCH | QUICKHITS>
+  (VOICE = speech/audio/TTS/STT/voice-clone/music models; TOOLS = AI search engines, agentic/coding tools, product releases judged by benchmarks; QUICKHITS = catch-all incl. image/video/vision/robotics, funding, partnerships, policy)
 @@HEADLINE: <short headline under 100 chars, no HTML>
 @@HTML: <a single-line HTML <li>...</li> with the description and an inline [Source] link>
 (repeat the three @@ lines for each item)
